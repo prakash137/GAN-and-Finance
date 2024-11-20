@@ -1,0 +1,111 @@
+import yfinance as yf
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import matplotlib.pyplot as plt
+
+# Load AAPL Stock Data
+stock_data = yf.download('AAPL', start='2023-01-01', end='2024-01-10')['Close'].values
+
+# Normalize the stock prices
+min_price, max_price = stock_data.min(), stock_data.max()
+normalized_data = (stock_data - min_price) / (max_price - min_price)
+
+# Prepare data tensors
+true_data = torch.tensor(normalized_data, dtype=torch.float32)
+train_data = true_data[:365]  # Input for the Generator
+target_data = true_data  # Full target data
+
+class Generator(nn.Module):
+    def __init__(self, input_dim=365, output_dim=375):
+        super(Generator, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 512),
+            nn.ReLU(),
+            nn.Linear(512, output_dim),
+            nn.Tanh()
+        )
+    
+    def forward(self, x):
+        print(f"Generator input shape: {x.shape}")  # Debug log
+        output = self.net(x)
+        print(f"Generator output shape: {output.shape}")  # Debug log
+        return output
+
+class Discriminator(nn.Module):
+    def __init__(self, input_dim=375):
+        super(Discriminator, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.LeakyReLU(0.2),
+            nn.Linear(256, 512),
+            nn.LeakyReLU(0.2),
+            nn.Linear(512, 1)
+        )
+    
+    def forward(self, x):
+        print(f"Discriminator input shape: {x.shape}")  # Debug log
+        output = self.net(x)
+        print(f"Discriminator output shape: {output.shape}")  # Debug log
+        return output
+
+# Initialize models
+generator = Generator()
+discriminator = Discriminator()
+
+# Optimizers
+optimizer_G = optim.RMSprop(generator.parameters(), lr=0.0001)
+optimizer_D = optim.RMSprop(discriminator.parameters(), lr=0.0001)
+
+# Loss functions for Wasserstein GAN
+def discriminator_loss(real_output, fake_output):
+    return -torch.mean(real_output) + torch.mean(fake_output)
+
+def generator_loss(fake_output):
+    return -torch.mean(fake_output)
+
+# Training loop
+epochs = 5000
+critic_iterations = 5
+
+for epoch in range(epochs):
+    for _ in range(critic_iterations):
+        optimizer_D.zero_grad()
+        
+        # Real and fake data
+        real_data = target_data.unsqueeze(0)  # Shape (1, 375)
+        fake_data = generator(train_data.unsqueeze(0)).detach()  # Shape (1, 365 -> 375)
+        
+        # Discriminator outputs
+        real_output = discriminator(real_data)
+        fake_output = discriminator(fake_data)
+        
+        # Compute Discriminator loss
+        loss_d = discriminator_loss(real_output, fake_output)
+        loss_d.backward()
+        optimizer_D.step()
+
+    # Train Generator
+    optimizer_G.zero_grad()
+    fake_data = generator(train_data.unsqueeze(0))  # Shape (1, 365 -> 375)
+    fake_output = discriminator(fake_data)
+    loss_g = generator_loss(fake_output)
+    loss_g.backward()
+    optimizer_G.step()
+
+    # Print logs every 500 epochs
+    if epoch % 500 == 0:
+        print(f"Epoch [{epoch}/{epochs}] | Loss D: {loss_d.item():.4f}, Loss G: {loss_g.item():.4f}")
+
+# Plot results
+generated_stock = generator(train_data.unsqueeze(0)).detach().numpy()[0]
+real_stock = target_data.numpy()
+
+plt.figure(figsize=(12, 6))
+plt.plot(range(375), real_stock, label='Real Data', color='black')
+plt.plot(range(365, 375), generated_stock[365:], label='Generated Data', linestyle='dashed')
+plt.legend()
+plt.title('Real vs Generated AAPL Stock Prices')
+plt.show()

@@ -1,0 +1,25 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+# Set random seed for reproducibility
+np.random.seed(44)
+
+# Parameters for the t-distribution
+df = 14  # degrees of freedom (lower values make heavier tails)
+size = 10000  # number of data points
+
+# Generate synthetic returns data with heavy tails
+returns_data = np.random.standard_t(df, size)
+
+# Convert the data to a pandas DataFrame for analysis and visualization
+returns_df = pd.DataFrame(returns_data, columns=['Returns'])
+
+# Plotting the distribution
+plt.figure(figsize=(10, 5))
+sns.histplot(returns_df['Returns'], kde=True, bins=100, color='purple')
+plt.title('Synthetic Returns Data with Heavy Tails (t-distribution)')
+plt.xlabel('Returns')
+plt.ylabel('Frequency')
+plt.show()

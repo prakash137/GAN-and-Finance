@@ -1,0 +1,219 @@
+# import torch
+# import torch.optim as optim
+# import torch.nn.functional as F
+# import numpy as np
+
+# # Constants
+# T = 10000  # Total time steps
+# mu_M, sigma_M = 0.1, 0.25  # Target true model parameters
+# nb = 100  # Number of batches
+# K = T // nb  # Batch size
+# epsilon = 1e-8  # Small value to prevent log(0) and division by zero
+
+# # True data generation (R_1:T)
+# np.random.seed(0)  # For reproducibility
+# Z_true = np.random.randn(T)
+# R_true = mu_M + sigma_M * Z_true
+
+# # GAN parameters
+# class Generator(torch.nn.Module):
+#     def __init__(self):
+#         super(Generator, self).__init__()
+#         self.mu = torch.nn.Parameter(torch.tensor(0.0))  # Initial guess for mu^G
+#         self.sigma = torch.nn.Parameter(torch.tensor(1.0))  # Initial guess for sigma^G
+
+#     def forward(self, Z):
+#         return self.mu + self.sigma * Z
+
+# class Discriminator(torch.nn.Module):
+#     def __init__(self):
+#         super(Discriminator, self).__init__()
+#         self.mu = torch.nn.Parameter(torch.tensor(0.0))  # Initial guess for mu^D
+#         self.sigma = torch.nn.Parameter(torch.tensor(1.0))  # Initial guess for sigma^D
+
+#     def forward(self, X):
+#         # Likelihood of observing data X given (mu^D, sigma^D)
+#         T = len(X)
+#         variance = self.sigma**2 + epsilon  # Adding epsilon for numerical stability
+#         log_likelihood = -0.5 * T * torch.log(2 * np.pi * variance) \
+#                          - torch.sum((X - self.mu)**2) / (2 * variance)
+#         # Returning likelihood in log-space for stability
+#         return log_likelihood
+
+# # Instantiate models
+# generator = Generator()
+# discriminator = Discriminator()
+
+# # Optimizers
+# optimizer_G = optim.SGD(generator.parameters(), lr=0.01)
+# optimizer_D = optim.SGD(discriminator.parameters(), lr=0.01)
+
+# # Training loop
+# num_epochs = 100
+# tolerance = 1e-4
+# previous_loss = float('inf')
+
+# for epoch in range(num_epochs):
+#     # Step 3: Generate synthetic time series R_1:T^G
+#     Z_G = torch.randn(T)
+#     R_G = generator(Z_G)
+
+#     # Step 4: Calculate discriminator loss
+#     loss_D = 0
+#     for i in range(nb):
+#         R_batch = torch.tensor(R_true[i*K:(i+1)*K], dtype=torch.float32)
+#         R_G_batch = R_G[i*K:(i+1)*K]
+        
+#         D_real = discriminator(R_batch)
+#         D_fake = discriminator(R_G_batch)
+        
+#         # Add a small value to prevent log of zero
+#         D_real = torch.clamp(D_real, min=epsilon)
+#         D_fake = torch.clamp(D_fake, min=epsilon)
+
+#         # Accumulate the loss with log probabilities
+#         loss_D += torch.log(D_real) + torch.log(1 - torch.sigmoid(D_fake))
+
+#     # Minimize negative average loss
+#     loss_D = -loss_D / nb  
+
+#     # Step 5: Update parameters
+#     optimizer_D.zero_grad()
+#     optimizer_G.zero_grad()
+#     loss_D.backward()
+#     optimizer_D.step()
+#     optimizer_G.step()
+
+#     # Check convergence
+#     if abs(previous_loss - loss_D.item()) < tolerance:
+#         print(f"Converged at epoch {epoch + 1}")
+#         break
+#     previous_loss = loss_D.item()
+#     print(f"Epoch {epoch + 1}, Loss: {loss_D.item()}")
+
+# # Final estimated parameters
+# mu_G, sigma_G = generator.mu.item(), generator.sigma.item()
+# mu_D, sigma_D = discriminator.mu.item(), discriminator.sigma.item()
+# print(f"Estimated parameters:\nGenerator: mu^G = {mu_G}, sigma^G = {sigma_G}")
+# print(f"Discriminator: mu^D = {mu_D}, sigma^D = {sigma_D}")
+
+#The code above converges at epoch 2, and renders mu=0 and sigma =1.
+
+##So we try a new code next:
+
+import torch
+import torch.optim as optim
+import torch.nn as nn
+import numpy as np
+
+# Constants
+T = 10000  # Total time steps
+mu_M, sigma_M = 0.1, 0.25  # Target true model parameters
+nb = 100  # Number of batches
+K = T // nb  # Batch size
+
+# True data generation (R_1:T)
+np.random.seed(0)  # For reproducibility (we want the data to be different each time we run this!)
+Z_true = np.random.randn(T) # The data that' standard normal distributed.
+R_true = mu_M + sigma_M * Z_true # The Gaussian distribution that is shifted by mu_M = 0.1 and sigma = 0.25
+
+# GAN parameters (imported from torch library):
+class Generator(torch.nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+        self.mu = torch.nn.Parameter(torch.tensor(0.0))  # Initial guess for mu^G
+        self.sigma = torch.nn.Parameter(torch.tensor(1.0))  # Initial guess for sigma^G
+
+    def forward(self, Z):
+        return self.mu + self.sigma * Z
+
+class Discriminator(torch.nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+        self.linear = nn.Linear(1, 1)  # Simple linear layer for classification
+
+    def forward(self, X):
+        return torch.sigmoid(self.linear(X.view(-1, 1)))  # Output a probability
+
+#Question: How are the Generator and the Discriminator built? Can you describe this from scratch? Or how best can you describe this?
+
+
+# Example models:
+generator = Generator()
+discriminator = Discriminator()
+
+#You can try these to understand the generator:
+#generator.mu
+#generator.sigma
+#generator.forward(Z)
+
+# Loss function and optimizers
+criterion = nn.BCELoss()  # Binary cross-entropy loss
+optimizer_G = optim.SGD(generator.parameters(), lr=0.01)
+optimizer_D = optim.SGD(discriminator.parameters(), lr=0.01)
+
+# Training loop
+num_epochs = 1000
+tolerance = 1e-4
+previous_loss = float('inf')
+
+for epoch in range(num_epochs):
+    # Step 3: Generate synthetic time series R_1:T^G
+    Z_G = torch.randn(T)
+    R_G = generator(Z_G)
+
+    # Step 4: Train Discriminator with real and fake batches
+    loss_D = 0
+    for i in range(nb):
+        R_batch = torch.tensor(R_true[i*K:(i+1)*K], dtype=torch.float32)
+        R_G_batch = R_G[i*K:(i+1)*K]
+
+        # Discriminator on real data
+        real_labels = torch.ones(K, 1)
+        fake_labels = torch.zeros(K, 1)
+        D_real = discriminator(R_batch)
+        D_fake = discriminator(R_G_batch)
+
+        # Compute discriminator loss for real and fake
+        loss_real = criterion(D_real, real_labels)
+        loss_fake = criterion(D_fake, fake_labels)
+        loss_D += (loss_real + loss_fake) / 2
+
+    loss_D /= nb  # Average loss per batch
+
+    optimizer_D.zero_grad()
+    loss_D.backward()
+    optimizer_D.step()
+
+    # Step 5: Train Generator to fool Discriminator
+    Z_G = torch.randn(T)
+    R_G = generator(Z_G)
+
+    loss_G = 0
+    for i in range(nb):
+        R_G_batch = R_G[i*K:(i+1)*K]
+        fake_labels = torch.ones(K, 1)  # Generator wants discriminator to output "real"
+        
+        D_fake = discriminator(R_G_batch)
+        loss_G += criterion(D_fake, fake_labels)
+
+    loss_G /= nb  # Average loss per batch
+
+    optimizer_G.zero_grad()
+    loss_G.backward()
+    optimizer_G.step()
+
+    # Check convergence
+    if abs(previous_loss - loss_G.item()) < tolerance:
+        print(f"Converged at epoch {epoch + 1}")
+        break
+    previous_loss = loss_G.item()
+    print(f"Epoch {epoch + 1}, D Loss: {loss_D.item()}, G Loss: {loss_G.item()}")
+
+# Final estimated parameters
+mu_G, sigma_G = generator.mu.item(), generator.sigma.item()
+print(f"Estimated parameters:\nGenerator: mu^G = {mu_G}, sigma^G = {sigma_G}")
+
+##This controlled experiment is converging at different epochs each time I run it.
+##What do these convergence mean?
+

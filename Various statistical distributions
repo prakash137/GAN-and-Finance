@@ -1,0 +1,80 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+# Create directory to save data if it doesn't exist
+output_dir = 'distribution_data'
+os.makedirs(output_dir, exist_ok=True)
+
+# Number of samples for each distribution
+num_samples = 1000
+
+# Function to save data
+def save_data(data, filename):
+    filepath = os.path.join(output_dir, filename)
+    np.save(filepath, data)
+    print(f"Data saved to {filepath}")
+
+# Function to plot and save each distribution
+def plot_distribution(data, title):
+    plt.figure(figsize=(8, 5))
+    plt.hist(data, bins=30, density=True, alpha=0.6, color='b')
+    plt.title(title)
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.grid(True)
+    plt.show()
+
+# 1. Uniform Distribution
+uniform_data = np.random.uniform(0, 1, num_samples)
+save_data(uniform_data, 'uniform_distribution.npy')
+plot_distribution(uniform_data, 'Uniform Distribution')
+
+# 2. Exponential Distribution
+exponential_data = np.random.exponential(1, num_samples)
+save_data(exponential_data, 'exponential_distribution.npy')
+plot_distribution(exponential_data, 'Exponential Distribution')
+
+# 3. Laplace Distribution
+laplace_data = np.random.laplace(0, 1, num_samples)
+save_data(laplace_data, 'laplace_distribution.npy')
+plot_distribution(laplace_data, 'Laplace Distribution')
+
+# 4. Beta Distribution
+beta_data = np.random.beta(2, 5, num_samples)
+save_data(beta_data, 'beta_distribution.npy')
+plot_distribution(beta_data, 'Beta Distribution')
+
+# 5. Gamma Distribution
+gamma_data = np.random.gamma(2, 2, num_samples)
+save_data(gamma_data, 'gamma_distribution.npy')
+plot_distribution(gamma_data, 'Gamma Distribution')
+
+# 6. Poisson Distribution
+poisson_data = np.random.poisson(5, num_samples)
+save_data(poisson_data, 'poisson_distribution.npy')
+plot_distribution(poisson_data, 'Poisson Distribution')
+
+# 7. Student’s t-Distribution
+t_data = np.random.standard_t(10, num_samples)
+save_data(t_data, 't_distribution.npy')
+plot_distribution(t_data, 'Student’s t-Distribution')
+
+# 8. Weibull Distribution
+weibull_data = np.random.weibull(2, num_samples)
+save_data(weibull_data, 'weibull_distribution.npy')
+plot_distribution(weibull_data, 'Weibull Distribution')
+
+# 9. Cauchy Distribution
+cauchy_data = np.random.standard_cauchy(num_samples)
+# Truncate for better visualization
+cauchy_data = cauchy_data[(cauchy_data > -25) & (cauchy_data < 25)]
+save_data(cauchy_data, 'cauchy_distribution.npy')
+plot_distribution(cauchy_data, 'Cauchy Distribution')
+
+# 10. Binomial Distribution
+binomial_data = np.random.binomial(10, 0.5, num_samples)
+save_data(binomial_data, 'binomial_distribution.npy')
+plot_distribution(binomial_data, 'Binomial Distribution')
+
+print("All distributions generated, visualized, and saved.")

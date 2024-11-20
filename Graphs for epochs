@@ -1,0 +1,82 @@
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Set parameters for the "true" data
+T = 10000  # Total time steps (number of data points)
+mu_true, sigma_true = 1.1, 0.25  # Mean and standard deviation of the true data
+
+# Generate the true data (Gaussian distribution) as a PyTorch tensor
+np.random.seed(0)
+true_data = torch.tensor(mu_true + sigma_true * np.random.randn(T), dtype=torch.float32)
+
+# Define the Generator class
+
+# I don't understand what is a class in python. How do people define it?
+class Generator(torch.nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+        self.mu = torch.nn.Parameter(torch.tensor(0.0))  # Initial guess for mu^G
+        self.sigma = torch.nn.Parameter(torch.tensor(1.0))  # Initial guess for sigma^G
+
+    def forward(self, Z):
+        return self.mu + self.sigma * Z
+
+# Initialize the generator and optimizer
+generator = Generator()
+optimizer_G = torch.optim.SGD(generator.parameters(), lr=0.01)
+
+# Record generated data statistics after each epoch for plotting
+generated_data_distributions = []
+num_epochs = 200
+
+# Training loop for {num_epochs} epochs
+for epoch in range(num_epochs):
+    # Generate synthetic data
+    Z = torch.randn(T)  # Gaussian noise
+    generated_data = generator(Z)  # Generated data for this epoch
+    
+    # Record mean and std deviation of generated data for plotting
+    generated_data_distributions.append((generated_data.detach().numpy(), generator.mu.item(), generator.sigma.item()))
+    
+    # Compute the loss as Mean Squared Error (MSE) between generated and true data
+    loss = ((generated_data - true_data) ** 2).mean()  # MSE loss for demonstration
+    optimizer_G.zero_grad()
+    loss.backward()
+    optimizer_G.step()
+
+# Plotting
+plt.figure(figsize=(12, 6))
+
+# 1. Plot the true data distribution
+plt.hist(true_data.numpy(), bins=50, density=True, alpha=0.5, label="True Data (mean=0.1, std=0.25)", color="black")
+
+# 2. Plot the initial generator distribution
+Z_initial = np.random.randn(T)  # Standard normal
+initial_generated_data = generator.mu.item() + generator.sigma.item() * Z_initial
+plt.hist(initial_generated_data, bins=50, density=True, alpha=0.5, label="Initial Generator Data (mean=0, std=1)", color="gray")
+
+# 3. Plot the generated data after each epoch with different colors, but add labels only for first 5 and last 5 epochs
+colors = plt.cm.viridis(np.linspace(0, 1, num_epochs))
+for i, (data, mu, sigma) in enumerate(generated_data_distributions):
+    label = None
+    if i < 5 or i >= num_epochs - 5:
+        label = f"Epoch {i+1} (mean={mu:.2f}, std={sigma:.2f})"
+    plt.hist(data, bins=50, density=True, alpha=0.3, color=colors[i], label=label)
+
+# # 3. Plot the generated data after each epoch with different colors
+# colors = plt.cm.viridis(np.linspace(0, 1, num_epochs))
+# for i, (data, mu, sigma) in enumerate(generated_data_distributions):
+#     plt.hist(data, bins=50, density=True, alpha=0.3, color=colors[i], 
+#              label=f"Epoch {i+1} (mean={mu:.2f}, std={sigma:.2f})")
+
+# Add labels and legend
+plt.xlabel("Data Values")
+plt.ylabel("Density")
+plt.title(f"Evolution of Generated Data Distribution Over {num_epochs} Epochs")
+plt.legend(loc="upper right")
+
+# Save the plot to a file (for example, in the current directory)
+plt.savefig(f"{num_epochs}_Epochs.png", format="png", dpi=300)
+
+plt.show()

@@ -1,0 +1,79 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class LogNormalize(nn.Module):
+    def forward(self, S):
+        # Log-normalization to get returns r_t
+        return torch.log(S[:, 1:] / S[:, :-1])
+
+class EncoderH(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(EncoderH, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
+class EncoderEpsilon(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(EncoderEpsilon, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
+class MeanVarianceExtractor(nn.Module):
+    def forward(self, h):
+        # Assume h has shape (batch_size, 2n) where first n is for variance, second n for mean
+        n = h.shape[1] // 2
+        mu = h[:, n:]  # Mean part
+        sigma = torch.abs(h[:, :n])  # Variance part, taking absolute to ensure positivity
+        return mu, sigma
+
+class StockPredictionNN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(StockPredictionNN, self).__init__()
+        self.log_normalize = LogNormalize()
+        self.encoder_h = EncoderH(input_dim, hidden_dim, 2 * output_dim)
+        self.encoder_epsilon = EncoderEpsilon(input_dim, hidden_dim, output_dim)
+        self.mean_variance_extractor = MeanVarianceExtractor()
+
+    def forward(self, S):
+        # Step 1: Log-normalization
+        r_t = self.log_normalize(S)
+
+        # Step 2a: Encoder H to get h_t, which we split into mu and sigma
+        h_t = self.encoder_h(r_t)
+        mu, sigma = self.mean_variance_extractor(h_t)
+
+        # Step 2b: Encoder Epsilon to get epsilon_t
+        epsilon_t = self.encoder_epsilon(r_t)
+
+        # Step 4a and 4b: Combine mu, sigma, and epsilon to get the final output
+        # Hadamard product and sum to create the final candidate series
+        r_t_tilde = mu + sigma * epsilon_t  # Element-wise product for variance adjustment
+
+        return r_t_tilde, mu, sigma, epsilon_t  # Return hidden variables for further inspection
+
+# Example usage
+input_dim = 10  # Number of assets
+hidden_dim = 50
+output_dim = input_dim  # Output dimension equals the number of assets
+
+# Initialize the model
+model = StockPredictionNN(input_dim=input_dim, hidden_dim=hidden_dim, output_dim=output_dim)
+
+# Example stock price data for a batch of samples
+S = torch.rand((32, input_dim + 1))  # (batch_size, number_of_assets + 1)
+
+# Forward pass
+r_t_tilde, mu, sigma, epsilon_t = model(S)
+print("Estimated returns:", r_t_tilde)
+print("Mean (mu):", mu)
+print("Variance (sigma):", sigma)
+print("Noise (epsilon):", epsilon_t)
